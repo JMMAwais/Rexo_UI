@@ -113,7 +113,7 @@ const AdminAnalytics = () => {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                     <XAxis dataKey="month" className="text-xs" axisLine={false} tickLine={false} />
                     <YAxis className="text-xs" axisLine={false} tickLine={false} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
+<ChartTooltip content={(props) => <ChartTooltipContent {...props} />} />
                     <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#revArea)" />
                   </AreaChart>
                 </ChartContainer>
@@ -136,7 +136,7 @@ const AdminAnalytics = () => {
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                       <XAxis dataKey="month" className="text-xs" axisLine={false} tickLine={false} />
                       <YAxis className="text-xs" axisLine={false} tickLine={false} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
+                     <ChartTooltip content={(props) => <ChartTooltipContent {...props} />} />
                       <Line type="monotone" dataKey="orders" stroke="hsl(var(--accent))" strokeWidth={2} dot={{ r: 3 }} />
                       <Line type="monotone" dataKey="customers" stroke="hsl(var(--success))" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
@@ -185,7 +185,7 @@ const AdminAnalytics = () => {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" className="text-xs" axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="method" className="text-xs" axisLine={false} tickLine={false} width={80} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
+                   <ChartTooltip content={(props) => <ChartTooltipContent {...props} />} />
                     <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} barSize={28} />
                   </BarChart>
                 </ChartContainer>

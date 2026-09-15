@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { formatPrice } from "@/lib/mock-data";
 
 const PaymentSuccess = () => {
   const location = useLocation();
-  const navigate = useNavigate();
+
   const state = (location.state || {}) as {
     method?: string;
     subMethod?: string;

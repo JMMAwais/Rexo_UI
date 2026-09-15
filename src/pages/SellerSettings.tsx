@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Store, CreditCard, Truck, Bell, Shield, Globe } from "lucide-react";
+import { Store, CreditCard, Truck, Bell, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 const SellerSettings = () => {

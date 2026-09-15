@@ -93,7 +93,7 @@ const SellerAnalytics = () => (
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                   <XAxis dataKey="month" className="text-xs" axisLine={false} tickLine={false} />
                   <YAxis className="text-xs" axisLine={false} tickLine={false} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
+                 <ChartTooltip content={(props) => <ChartTooltipContent {...props} />} />
                   <Bar dataKey="revenue" fill="url(#revGrad)" radius={[6, 6, 0, 0]} barSize={28} />
                   <Bar dataKey="orders" fill="url(#ordGrad)" radius={[6, 6, 0, 0]} barSize={28} />
                 </BarChart>
@@ -113,7 +113,7 @@ const SellerAnalytics = () => (
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="month" className="text-xs" />
                     <YAxis className="text-xs" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
+                   <ChartTooltip content={(props) => <ChartTooltipContent {...props} />} />
                     <Line type="monotone" dataKey="orders" stroke="hsl(var(--accent))" strokeWidth={2} dot={{ r: 4 }} />
                   </LineChart>
                 </ChartContainer>
