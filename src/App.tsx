@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/context/AuthContext";
 import Index from "./pages/Index";
 import Products from "./pages/Products";
 import ProductDetail from "./pages/ProductDetail";
@@ -52,22 +53,39 @@ import AdminStaff from "./pages/AdminStaff";
 import AdminPages from "./pages/AdminPages";
 import AdminGuard from "./components/admin/AdminGuard";
 import NotFound from "./pages/NotFound";
+import SellerGuard from "./components/seller/SellerGuard";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import { NotificationsProvider } from "@/context/NotificationsContext";
+import { WishlistProvider } from "@/context/WishlistContext";
+import { CartProvider } from "@/context/CartContext";
+import OrderPlaced from "./pages/OrderPlaced";
+import MyOrders from "./pages/MyOrders";
+import OrderDetail from "./pages/OrderDetail";
+
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <AuthProvider> 
+       <NotificationsProvider>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
+      <WishlistProvider>
+         <CartProvider>
         <Routes>
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<Index />} />
           <Route path="/products" element={<Products />} />
           <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="/store/:id" element={<SellerStore />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/order-placed" element={<OrderPlaced />} />
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/payment/failed" element={<PaymentFailed />} />
           <Route path="/login" element={<Login />} />
@@ -81,17 +99,20 @@ const App = () => (
           <Route path="/returns" element={<ReturnPolicy />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/contact" element={<ContactUs />} />
-          <Route path="/seller/dashboard" element={<SellerDashboard />} />
-          <Route path="/seller/products" element={<SellerProducts />} />
-          <Route path="/seller/products/new" element={<SellerAddProduct />} />
-          <Route path="/seller/dropshipping" element={<SellerDropshipping />} />
-          <Route path="/seller/orders" element={<SellerOrders />} />
-          <Route path="/seller/analytics" element={<SellerAnalytics />} />
-          <Route path="/seller/reviews" element={<SellerReviews />} />
-          <Route path="/seller/earnings" element={<SellerEarnings />} />
-          <Route path="/seller/settings" element={<SellerSettings />} />
-          <Route path="/seller/notifications" element={<SellerNotifications />} />
-          <Route path="/seller/register" element={<SellerRegister />} />
+          <Route path="/orders" element={<MyOrders />} />
+          <Route path="/orders/:id" element={<OrderDetail />} />
+        <Route path="/seller/dashboard" element={<SellerGuard><SellerDashboard /></SellerGuard>} />
+        <Route path="/seller/products" element={<SellerGuard><SellerProducts /></SellerGuard>} />
+        <Route path="/seller/products/new" element={<SellerGuard><SellerAddProduct /></SellerGuard>} />
+        <Route path="/seller/dropshipping" element={<SellerGuard><SellerDropshipping /></SellerGuard>} />
+        <Route path="/seller/orders" element={<SellerGuard><SellerOrders /></SellerGuard>} />
+        <Route path="/seller/analytics" element={<SellerGuard><SellerAnalytics /></SellerGuard>} />
+        <Route path="/seller/reviews" element={<SellerGuard><SellerReviews /></SellerGuard>} />
+        <Route path="/seller/earnings" element={<SellerGuard><SellerEarnings /></SellerGuard>} />
+        <Route path="/seller/settings" element={<SellerGuard><SellerSettings /></SellerGuard>} />
+        <Route path="/seller/notifications" element={<SellerGuard><SellerNotifications /></SellerGuard>} />
+        <Route path="/seller/register" element={<SellerRegister />} />
+        
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
           <Route path="/admin/sellers" element={<AdminGuard><AdminSellers /></AdminGuard>} />
@@ -111,8 +132,12 @@ const App = () => (
           <Route path="/admin/pages" element={<AdminGuard><AdminPages /></AdminGuard>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </CartProvider>
+        </WishlistProvider>
       </BrowserRouter>
     </TooltipProvider>
+    </NotificationsProvider>
+        </AuthProvider>              
   </QueryClientProvider>
 );
 

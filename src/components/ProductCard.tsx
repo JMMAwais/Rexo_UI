@@ -3,10 +3,11 @@ import { Star, Heart } from "lucide-react";
 import { formatPrice } from "@/lib/mock-data";
 import type { Product } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useWishlist } from "@/context/WishlistContext";
 
 const ProductCard = ({ product }: { product: Product }) => {
-  const [liked, setLiked] = useState(false);
+   const { isWishlisted, toggle } = useWishlist();
+  const liked = isWishlisted(product.id);
   const discount = product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
@@ -34,9 +35,9 @@ const ProductCard = ({ product }: { product: Product }) => {
           </Badge>
         )}
         <button
-          onClick={(e) => {
+           onClick={(e) => {
             e.preventDefault();
-            setLiked(!liked);
+            toggle(product.id);
           }}
           className="absolute top-2 right-2 w-8 h-8 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center hover:bg-card transition-colors"
         >

@@ -1,127 +1,184 @@
 import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { categories as seedCategories } from "@/lib/mock-data";
-import { Plus, Pencil, Trash2, Search, FolderTree, Layers, EyeOff, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FolderTree, Layers, EyeOff, Eye, Loader2, CornerDownRight } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ADMIN_CATEGORIES_KEY,
+  createCategory,
+  deleteCategory,
+  fetchAdminCategories,
+  setCategoryActive,
+  updateCategory,
+  type AdminCategory,
+  type CategoryFormValues,
+} from "@/lib/adminCategoriesApi";
 
-interface SubCat { id: string; name: string; }
-interface Cat {
-  id: string;
-  name: string;
-  icon: string;
-  count: number;
-  subcategories: SubCat[];
-  active: boolean;
+const NO_PARENT = "none";
+const EMPTY_FORM: CategoryFormValues = { name: "", description: "", imageUrl: "" };
+
+type DialogState =
+  | { mode: "create"; parentId: string | null }
+  | { mode: "edit"; category: AdminCategory }
+  | null;
+
+interface Row {
+  category: AdminCategory;
+  depth: number;
 }
 
-const seed: Cat[] = seedCategories.map((c) => ({ ...c, active: true }));
+/** Categories ko tree ki tarteeb mein (parent ke neeche uske subcategories) flat rows mein badalta hai */
+function buildRows(categories: AdminCategory[]): Row[] {
+  const byParent = new Map<string | null, AdminCategory[]>();
+  for (const c of categories) {
+    const key = c.parentId ?? null;
+    const list = byParent.get(key) ?? [];
+    list.push(c);
+    byParent.set(key, list);
+  }
+  byParent.forEach((list) => list.sort((a, b) => a.name.localeCompare(b.name)));
+
+  const rows: Row[] = [];
+  const seen = new Set<string>();
+  const walk = (parentId: string | null, depth: number) => {
+    for (const c of byParent.get(parentId) ?? []) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      rows.push({ category: c, depth });
+      walk(c.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+
+  // Jin ka parent list mein nahi (maslan delete ho chuka), unhein bhi dikhayen
+  for (const c of categories) {
+    if (!seen.has(c.id)) rows.push({ category: c, depth: 0 });
+  }
+  return rows;
+}
 
 const AdminCategories = () => {
-  const [list, setList] = useState<Cat[]>(seed);
+  const queryClient = useQueryClient();
+  const { data: categories = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ADMIN_CATEGORIES_KEY,
+    queryFn: fetchAdminCategories,
+  });
+
   const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Cat | null>(null);
-  const [form, setForm] = useState({ name: "", icon: "📦", subsText: "" });
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<DialogState>(null);
+  const [form, setForm] = useState<CategoryFormValues>(EMPTY_FORM);
+  const [parentId, setParentId] = useState<string>(NO_PARENT);
+  const [toDelete, setToDelete] = useState<AdminCategory | null>(null);
 
-  const filtered = useMemo(
-    () =>
-      list.filter((c) =>
-        (c.name + " " + c.subcategories.map((s) => s.name).join(" "))
-          .toLowerCase()
-          .includes(search.toLowerCase())
-      ),
-    [list, search]
-  );
+  const nameById = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+  const rows = useMemo(() => buildRows(categories), [categories]);
 
-  const totals = useMemo(
-    () => ({
-      total: list.length,
-      active: list.filter((c) => c.active).length,
-      hidden: list.filter((c) => !c.active).length,
-      subs: list.reduce((a, c) => a + c.subcategories.length, 0),
-    }),
-    [list]
-  );
+  const query = search.trim().toLowerCase();
+  const visibleRows = query
+    ? rows
+        .filter(({ category: c }) => (c.name + " " + c.slug).toLowerCase().includes(query))
+        .map((r) => ({ ...r, depth: 0 })) // search mein flat list
+    : rows;
 
-  const openNew = () => {
-    setEditing(null);
-    setForm({ name: "", icon: "📦", subsText: "" });
-    setOpen(true);
+  const totals = {
+    total: categories.length,
+    active: categories.filter((c) => c.isActive).length,
+    hidden: categories.filter((c) => !c.isActive).length,
+    subs: categories.filter((c) => c.parentId).length,
   };
-  const openEdit = (c: Cat) => {
-    setEditing(c);
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ADMIN_CATEGORIES_KEY });
+    // Seller ke add-product form wagera ki categories bhi taza ho jayen
+    void queryClient.invalidateQueries({ queryKey: ["categories"] });
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!dialog) return;
+      if (dialog.mode === "create") {
+        await createCategory(form, parentId === NO_PARENT ? null : parentId);
+      } else {
+        await updateCategory(dialog.category.id, form);
+      }
+    },
+    onSuccess: () => {
+      toast.success(dialog?.mode === "create" ? "Category created" : "Category updated");
+      closeDialog();
+      refresh();
+    },
+    onError: (err: Error) => toast.error("Could not save category", { description: err.message }),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ category, active }: { category: AdminCategory; active: boolean }) =>
+      setCategoryActive(category.id, active),
+    onSuccess: (_d, vars) => {
+      toast.success(vars.active ? `"${vars.category.name}" is now visible` : `"${vars.category.name}" is now hidden`);
+      refresh();
+    },
+    onError: (err: Error) => toast.error("Could not change visibility", { description: err.message }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (category: AdminCategory) => deleteCategory(category.id),
+    onSuccess: (_d, category) => {
+      toast.success(`"${category.name}" was deleted`);
+      setToDelete(null);
+      refresh();
+    },
+    onError: (err: Error) => toast.error("Could not delete category", { description: err.message }),
+  });
+
+  const openCreate = (parent: string | null = null) => {
+    setForm(EMPTY_FORM);
+    setParentId(parent ?? NO_PARENT);
+    setDialog({ mode: "create", parentId: parent });
+  };
+
+  const openEdit = (category: AdminCategory) => {
     setForm({
-      name: c.name,
-      icon: c.icon,
-      subsText: c.subcategories.map((s) => s.name).join(", "),
+      name: category.name,
+      description: category.description ?? "",
+      imageUrl: category.imageUrl ?? "",
     });
-    setOpen(true);
+    setDialog({ mode: "edit", category });
   };
 
-  const save = () => {
+  const closeDialog = () => {
+    setDialog(null);
+    setForm(EMPTY_FORM);
+  };
+
+  const submit = () => {
     if (!form.name.trim()) {
-      toast.error("Name required");
+      toast.error("Name is required");
       return;
     }
-    const subs: SubCat[] = form.subsText
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((name, i) => ({ id: `${Date.now()}-${i}`, name }));
-
-    if (editing) {
-      setList((p) =>
-        p.map((c) =>
-          c.id === editing.id
-            ? { ...c, name: form.name, icon: form.icon || "📦", subcategories: subs }
-            : c
-        )
-      );
-      toast.success("Category updated");
-    } else {
-      setList((p) => [
-        ...p,
-        {
-          id: `cat-${Date.now()}`,
-          name: form.name,
-          icon: form.icon || "📦",
-          count: 0,
-          subcategories: subs,
-          active: true,
-        },
-      ]);
-      toast.success("Category added");
-    }
-    setOpen(false);
+    saveMutation.mutate();
   };
 
-  const toggleActive = (id: string) => {
-    setList((p) => p.map((c) => (c.id === id ? { ...c, active: !c.active } : c)));
-  };
-
-  const confirmDelete = () => {
-    if (!deleteId) return;
-    setList((p) => p.filter((c) => c.id !== deleteId));
-    toast.success("Category deleted");
-    setDeleteId(null);
-  };
+  const togglingId = toggleMutation.isPending ? toggleMutation.variables?.category.id : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -133,11 +190,9 @@ const AdminCategories = () => {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h1 className="text-2xl font-bold">Categories</h1>
-                <p className="text-sm text-muted-foreground">
-                  Manage product categories & subcategories
-                </p>
+                <p className="text-sm text-muted-foreground">Manage product categories & subcategories</p>
               </div>
-              <Button onClick={openNew}>
+              <Button onClick={() => openCreate()}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Category
               </Button>
@@ -190,7 +245,7 @@ const AdminCategories = () => {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search categories or subcategories..."
+                  placeholder="Search categories..."
                   className="pl-9"
                 />
               </div>
@@ -198,149 +253,212 @@ const AdminCategories = () => {
 
             {/* Table */}
             <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Subcategories</TableHead>
-                    <TableHead className="text-center">Products</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-xl">
-                            {c.icon}
-                          </div>
-                          <div>
-                            <p className="font-medium">{c.name}</p>
-                            <p className="text-xs text-muted-foreground">{c.id}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1 max-w-md">
-                          {c.subcategories.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          ) : (
-                            c.subcategories.map((s) => (
-                              <Badge key={s.id} variant="secondary" className="font-normal">
-                                {s.name}
-                              </Badge>
-                            ))
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">{c.count}</TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <Switch
-                            checked={c.active}
-                            onCheckedChange={() => toggleActive(c.id)}
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            {c.active ? "Active" : "Hidden"}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDeleteId(c.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filtered.length === 0 && (
+              {isLoading ? (
+                <div className="p-10 flex items-center justify-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading categories...
+                </div>
+              ) : isError ? (
+                <div className="p-10 text-center space-y-3">
+                  <p className="text-sm text-destructive">
+                    {error instanceof Error ? error.message : "Unable to load categories"}
+                  </p>
+                  <Button size="sm" variant="outline" onClick={() => void refetch()}>
+                    Try again
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No categories found
-                      </TableCell>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {visibleRows.map(({ category: c, depth }) => (
+                      <TableRow key={c.id} className={c.isActive ? "" : "opacity-60"}>
+                        <TableCell>
+                          <div className="flex items-center gap-3" style={{ paddingLeft: depth * 24 }}>
+                            {depth > 0 && <CornerDownRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                            {c.imageUrl ? (
+                              <img src={c.imageUrl} alt={c.name} className="w-10 h-10 rounded-lg object-cover bg-secondary" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                                <FolderTree className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-medium">{c.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {c.slug}
+                                {c.parentId && query && nameById.get(c.parentId) ? ` · in ${nameById.get(c.parentId)}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          <p className="text-sm text-muted-foreground line-clamp-2">{c.description ?? "-"}</p>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <Switch
+                              checked={c.isActive}
+                              disabled={togglingId === c.id}
+                              onCheckedChange={(checked) => toggleMutation.mutate({ category: c, active: checked })}
+                            />
+                            <Badge variant="outline" className="text-xs font-normal">
+                              {c.isActive ? "Active" : "Hidden"}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="sm" title="Add subcategory" onClick={() => openCreate(c.id)}>
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" title="Edit" onClick={() => openEdit(c)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Delete"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setToDelete(c)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {visibleRows.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          {categories.length === 0 ? "No categories yet. Add your first category." : "No categories found"}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </Card>
           </main>
         </div>
       </div>
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* Add / Edit dialog */}
+      <Dialog open={!!dialog} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Category" : "Add Category"}</DialogTitle>
+            <DialogTitle>{dialog?.mode === "edit" ? "Edit Category" : "Add Category"}</DialogTitle>
+            <DialogDescription>
+              {dialog?.mode === "edit"
+                ? "Update the name, description or image. A category's parent cannot be changed."
+                : "Create a top-level category, or choose a parent to create a subcategory."}
+            </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-[80px_1fr] gap-3">
-              <div>
-                <Label>Icon</Label>
-                <Input
-                  value={form.icon}
-                  onChange={(e) => setForm({ ...form, icon: e.target.value })}
-                  placeholder="📦"
-                  className="text-center text-xl"
-                  maxLength={2}
-                />
-              </div>
-              <div>
-                <Label>Name</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Electronics"
-                />
-              </div>
-            </div>
-            <div>
-              <Label>Subcategories (comma separated)</Label>
+            <div className="space-y-2">
+              <Label htmlFor="cat-name">Name *</Label>
               <Input
-                value={form.subsText}
-                onChange={(e) => setForm({ ...form, subsText: e.target.value })}
-                placeholder="Mobiles, Laptops, Accessories"
+                id="cat-name"
+                value={form.name}
+                maxLength={100}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Electronics"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Separate names with commas
-              </p>
+            </div>
+
+            {dialog?.mode === "create" ? (
+              <div className="space-y-2">
+                <Label>Parent category</Label>
+                <Select value={parentId} onValueChange={setParentId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_PARENT}>None (top-level category)</SelectItem>
+                    {rows.map(({ category: c, depth }) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {"— ".repeat(depth)}
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              dialog?.mode === "edit" && (
+                <p className="text-sm text-muted-foreground">
+                  Parent:{" "}
+                  <span className="text-foreground">
+                    {dialog.category.parentId ? (nameById.get(dialog.category.parentId) ?? "-") : "None (top-level)"}
+                  </span>
+                </p>
+              )
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="cat-desc">Description</Label>
+              <Textarea
+                id="cat-desc"
+                rows={3}
+                maxLength={500}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Optional"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cat-image">Image URL</Label>
+              <Input
+                id="cat-image"
+                value={form.imageUrl}
+                maxLength={500}
+                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                placeholder="https://... (optional)"
+              />
             </div>
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={closeDialog} disabled={saveMutation.isPending}>
               Cancel
             </Button>
-            <Button onClick={save}>{editing ? "Update" : "Add"}</Button>
+            <Button onClick={submit} disabled={saveMutation.isPending}>
+              {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {dialog?.mode === "edit" ? "Update" : "Add"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete confirm */}
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+      <AlertDialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this category?</AlertDialogTitle>
+            <AlertDialogTitle>Delete "{toDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. Products in this category will become uncategorized.
+              A category that has subcategories or products cannot be deleted. If you only want to stop showing
+              it in the store, turn its Active switch off instead.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (toDelete) deleteMutation.mutate(toDelete);
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
+              {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

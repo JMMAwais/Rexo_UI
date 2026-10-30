@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { categories } from "@/lib/mock-data";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { useMenuCategories } from "@/lib/publicCategoriesApi";
 
 const MegaMenu = () => {
+  const { data: categories = [] } = useMenuCategories();
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -16,6 +17,8 @@ const MegaMenu = () => {
     setMenuOpen(false);
     setActiveCategory(null);
   };
+
+  const active = categories.find((c) => c.id === activeCategory);
 
   return (
     <nav className="hidden md:block relative" onMouseLeave={handleMenuLeave}>
@@ -35,7 +38,11 @@ const MegaMenu = () => {
               }`}
             >
               {cat.name}
-              <ChevronDown className={`w-3 h-3 transition-transform ${activeCategory === cat.id ? "rotate-180" : ""}`} />
+              {cat.subcategories.length > 0 && (
+                <ChevronDown
+                  className={`w-3 h-3 transition-transform ${activeCategory === cat.id ? "rotate-180" : ""}`}
+                />
+              )}
             </Link>
           </div>
         ))}
@@ -44,8 +51,8 @@ const MegaMenu = () => {
         </Link>
       </div>
 
-      {/* Dropdown */}
-      {menuOpen && activeCategory && (
+      {/* Dropdown: sirf tab jab subcategories maujood hon */}
+      {menuOpen && active && active.subcategories.length > 0 && (
         <div
           className="absolute left-0 right-0 top-full bg-card border border-border rounded-b-lg shadow-elevated z-50 animate-fade-in"
           onMouseEnter={() => setMenuOpen(true)}
@@ -53,26 +60,24 @@ const MegaMenu = () => {
         >
           <div className="container mx-auto px-4 py-5">
             <div className="grid grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-2">
-              {categories
-                .find((c) => c.id === activeCategory)
-                ?.subcategories.map((sub) => (
-                  <Link
-                    key={sub.id}
-                    to={`/products?category=${activeCategory}&sub=${sub.id}`}
-                    className="py-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    {sub.name}
-                  </Link>
-                ))}
+              {active.subcategories.map((sub) => (
+                <Link
+                  key={sub.id}
+                  to={`/products?category=${active.id}&sub=${sub.id}`}
+                  className="py-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {sub.name}
+                </Link>
+              ))}
             </div>
             <div className="mt-4 pt-3 border-t border-border">
               <Link
-                to={`/products?category=${activeCategory}`}
+                to={`/products?category=${active.id}`}
                 className="text-xs text-primary font-medium hover:underline"
                 onClick={() => setMenuOpen(false)}
               >
-                View all in {categories.find((c) => c.id === activeCategory)?.name} →
+                View all in {active.name} →
               </Link>
             </div>
           </div>

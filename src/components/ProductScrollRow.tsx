@@ -10,9 +10,31 @@ interface ProductScrollRowProps {
   products: Product[];
   bgClassName?: string;
   viewAllHref?: string;
+  isLoading?: boolean;
+  
+  emptyMessage?: string;
 }
 
-const ProductScrollRow = ({ title, products, bgClassName = "bg-secondary/50", viewAllHref = "/products" }: ProductScrollRowProps) => {
+const SkeletonCard = () => (
+  // <div className="min-w-[220px] max-w-[260px] flex-shrink-0 rounded-lg bg-card shadow-card overflow-hidden animate-pulse">
+    <div className="w-[240px] flex-shrink-0 rounded-lg bg-card shadow-card overflow-hidden animate-pulse">
+    <div className="aspect-square bg-secondary" />
+    <div className="p-3 space-y-2">
+      <div className="h-3 w-1/3 bg-secondary rounded" />
+      <div className="h-4 w-3/4 bg-secondary rounded" />
+      <div className="h-4 w-1/2 bg-secondary rounded" />
+    </div>
+  </div>
+);
+
+const ProductScrollRow = ({
+  title,
+  products,
+  bgClassName = "bg-secondary/50",
+  viewAllHref = "/products",
+  isLoading = false,
+  emptyMessage,
+}: ProductScrollRowProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (dir: "left" | "right") => {
@@ -20,6 +42,8 @@ const ProductScrollRow = ({ title, products, bgClassName = "bg-secondary/50", vi
     const amount = 300;
     scrollRef.current.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
+
+  const showEmpty = !isLoading && products.length === 0 && !!emptyMessage;
 
   return (
     <section className={`py-12 ${bgClassName}`}>
@@ -38,17 +62,25 @@ const ProductScrollRow = ({ title, products, bgClassName = "bg-secondary/50", vi
             </Link>
           </div>
         </div>
-        <div
-          ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-        >
-          {products.map((p) => (
-            <div key={p.id} className="min-w-[220px] max-w-[260px] flex-shrink-0 snap-start">
-              <ProductCard product={p} />
-            </div>
-          ))}
-        </div>
+
+        {showEmpty ? (
+          <p className="text-sm text-muted-foreground py-8">{emptyMessage}</p>
+        ) : (
+          <div
+            ref={scrollRef}
+            className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 snap-x snap-mandatory"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            {isLoading
+              ? Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
+              : products.map((p) => (
+                  // <div key={p.id} className="min-w-[220px] max-w-[260px] flex-shrink-0 snap-start">
+                    <div key={p.id} className="w-[240px] flex-shrink-0 snap-start">
+                    <ProductCard product={p} />
+                  </div>
+                ))}
+          </div>
+        )}
       </div>
     </section>
   );

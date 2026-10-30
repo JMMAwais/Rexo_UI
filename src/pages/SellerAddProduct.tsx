@@ -1,72 +1,252 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Upload, ImagePlus } from "lucide-react";
-import { categories } from "@/lib/mock-data";
+import { ArrowLeft, Trash2, Upload, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { graphqlRequest } from "@/lib/graphqlClient";
+import { graphqlUploadRequest } from "@/lib/graphqlUpload";
 
-interface VariantRow {
-  id: number;
-  type: "color" | "size" | "storage" | "material";
-  label: string;
-  value: string;
-  priceAdjustment: string;
-  inStock: boolean;
+// ── Backend se categories ──────────────────────────────
+interface ApiCategory {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+const CATEGORIES_QUERY = `
+  query AllCategories {
+    allCategories {
+      id
+      name
+      isActive
+    }
+  }
+`;
+
+// ── Product create/publish/discount mutations ──────────
+const CREATE_PRODUCT_MUTATION = `
+  mutation CreateProduct($input: CreateProductInput!) {
+    createProduct(input: $input) {
+      data { id }
+      error
+    }
+  }
+`;
+
+const SET_DISCOUNT_MUTATION = `
+  mutation SetDiscount($input: SetProductDiscountInput!) {
+    setProductDiscount(input: $input) {
+      success
+      error
+    }
+  }
+`;
+
+const PUBLISH_PRODUCT_MUTATION = `
+  mutation PublishProduct($id: UUID!) {
+    publishProduct(id: $id) {
+      success
+      error
+    }
+  }
+`;
+
+const ADD_IMAGE_MUTATION = `
+  mutation AddProductImage($productId: UUID!, $file: Upload!, $isPrimary: Boolean!) {
+    addProductImage(productId: $productId, file: $file, isPrimary: $isPrimary) {
+      data { id url }
+      error
+    }
+  }
+`;
+
+// Empty string ko null, warna number bana deta hai (optional numeric fields ke liye)
+const toNumberOrNull = (value: string): number | null =>
+  value.trim() === "" ? null : Number(value);
+
+interface ImageFile {
+  file: File;
+  previewUrl: string;
 }
 
 const SellerAddProduct = () => {
   const navigate = useNavigate();
-  const [images, setImages] = useState<string[]>([]);
-  const [variants, setVariants] = useState<VariantRow[]>([]);
+
+  // ── Form state ───────────────────────────────────────
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [price, setPrice] = useState("");
+  const [originalPrice, setOriginalPrice] = useState("");
+  const [stock, setStock] = useState("");
+  const [images, setImages] = useState<ImageFile[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const addVariant = () => {
-    setVariants((prev) => [
-      ...prev,
-      { id: Date.now(), type: "color", label: "", value: "", priceAdjustment: "0", inStock: true },
-    ]);
-  };
+  // ── Shipping state ───────────────────────────────────
+  const [freeShipping, setFreeShipping] = useState(false);
+  const [shippingFee, setShippingFee] = useState("");
+  const [processingDays, setProcessingDays] = useState("1");
+  const [weightKg, setWeightKg] = useState("");
+  const [lengthCm, setLengthCm] = useState("");
+  const [widthCm, setWidthCm] = useState("");
+  const [heightCm, setHeightCm] = useState("");
 
-  const removeVariant = (id: number) => {
-    setVariants((prev) => prev.filter((v) => v.id !== id));
-  };
+  // ── Categories backend se load karein ───────────────
+  const { data: categoriesData } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () =>
+      graphqlRequest<{ allCategories: ApiCategory[] }>(CATEGORIES_QUERY),
+  });
+  const categories = (categoriesData?.allCategories ?? []).filter((c) => c.isActive);
 
-  const updateVariant = (id: number, field: keyof VariantRow, value: string | boolean) => {
-    setVariants((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, [field]: value } : v))
-    );
-  };
-
-  const addImagePlaceholder = () => {
-    const placeholders = [
-      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=400&h=400&fit=crop",
-    ];
-    if (images.length < 6) {
-      setImages((prev) => [...prev, placeholders[prev.length % placeholders.length]]);
+  // ── Image select  ──────────────────
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (images.length + files.length > 6) {
+      toast.error("Maximum 6 images allowed");
+      return;
     }
+    const newImages = files.map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    setImages((prev) => [...prev, ...newImages]);
+    e.target.value = ""; 
   };
 
   const removeImage = (idx: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== idx));
+    setImages((prev) => {
+      URL.revokeObjectURL(prev[idx].previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Product added successfully!", { description: "Your product is now live in your store." });
-    navigate("/seller/dashboard");
-  };
 
-  const category = categories.find((c) => c.id === selectedCategory);
+    if (!selectedCategory) {
+      toast.error("Category should be selected");
+      return;
+    }
+    if (images.length === 0) {
+      toast.error("At least one image should be added");
+      return;
+    }
+
+    // Shipping validation
+    if (!freeShipping && (shippingFee.trim() === "" || Number(shippingFee) < 0)) {
+      toast.error("Enter a shipping fee, or turn on free shipping");
+      return;
+    }
+    const days = Number(processingDays);
+    if (!Number.isInteger(days) || days < 0 || days > 30) {
+      toast.error("Processing time must be between 0 and 30 days");
+      return;
+    }
+    for (const [label, value] of [
+      ["Weight", weightKg],
+      ["Length", lengthCm],
+      ["Width", widthCm],
+      ["Height", heightCm],
+    ] as const) {
+      if (value.trim() !== "" && !(Number(value) > 0)) {
+        toast.error(`${label} must be greater than 0`);
+        return;
+      }
+    }
+
+    const sellingPrice = parseFloat(price);
+    const basePrice = originalPrice ? parseFloat(originalPrice) : sellingPrice;
+
+    setIsSubmitting(true);
+    let createdProductId: string | null = null;
+    try {
+  
+      const createResult = await graphqlRequest<{
+        createProduct: { data: { id: string } | null; error: string | null };
+      }>(CREATE_PRODUCT_MUTATION, {
+        input: {
+          sellerId: "00000000-0000-0000-0000-000000000000", 
+          categoryId: selectedCategory,
+          title,
+          description,
+          price: basePrice,
+          currency: "PKR",
+          stock: parseInt(stock, 10),
+          isDropshipped: false,
+          shipping: {
+            weightKg: toNumberOrNull(weightKg),
+            lengthCm: toNumberOrNull(lengthCm),
+            widthCm: toNumberOrNull(widthCm),
+            heightCm: toNumberOrNull(heightCm),
+            freeShipping,
+            shippingFee: freeShipping ? 0 : Number(shippingFee),
+            processingDays: days,
+          },
+        },
+      });
+
+      if (createResult.createProduct.error || !createResult.createProduct.data) {
+        throw new Error(createResult.createProduct.error ?? "Product can not be created");
+      }
+
+      const productId = createResult.createProduct.data.id;
+      createdProductId = productId;
+
+
+      if (originalPrice && sellingPrice < basePrice) {
+        const discountResult = await graphqlRequest<{
+          setProductDiscount: { success: boolean; error: string | null };
+        }>(SET_DISCOUNT_MUTATION, {
+          input: { id: productId, discountedPrice: sellingPrice, currency: "PKR" },
+        });
+        if (!discountResult.setProductDiscount.success) {
+          throw new Error(discountResult.setProductDiscount.error ?? "Could not apply the discount");
+        }
+      }
+
+    
+      for (let i = 0; i < images.length; i++) {
+        const imageResult = await graphqlUploadRequest<{
+          addProductImage: { data: { id: string; url: string } | null; error: string | null };
+        }>(ADD_IMAGE_MUTATION, { productId, isPrimary: i === 0 }, "file", images[i].file);
+        if (imageResult.addProductImage.error || !imageResult.addProductImage.data) {
+          throw new Error(imageResult.addProductImage.error ?? `Image ${i + 1} could not be uploaded`);
+        }
+      }
+
+
+      const publishResult = await graphqlRequest<{
+        publishProduct: { success: boolean; error: string | null };
+      }>(PUBLISH_PRODUCT_MUTATION, { id: productId });
+      if (!publishResult.publishProduct.success) {
+        throw new Error(publishResult.publishProduct.error ?? "Product could not be published");
+      }
+
+      toast.success("Product has been added!", {
+        description: "Your product is now live in the store.",
+      });
+      navigate("/seller/dashboard");
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Please try again";
+      toast.error("Something went wrong", {
+        description: createdProductId
+          ? `The product was saved as a draft, but: ${reason}`
+          : reason,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -92,43 +272,39 @@ const SellerAddProduct = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Product Name *</Label>
-                <Input id="name" placeholder="e.g. Wireless Noise Cancelling Headphones" required />
+                <Input
+                  id="name"
+                  placeholder="e.g. Wireless Noise Cancelling Headphones"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description *</Label>
-                <Textarea id="description" placeholder="Describe your product in detail..." rows={4} required />
+                <Textarea
+                  id="description"
+                  placeholder="Describe your product in detail..."
+                  rows={4}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  required
+                />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Category *</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.icon} {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Subcategory</Label>
-                  <Select disabled={!selectedCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={selectedCategory ? "Select subcategory" : "Select category first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {category?.subcategories.map((sub) => (
-                        <SelectItem key={sub.id} value={sub.id}>
-                          {sub.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label>Category *</Label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
@@ -142,7 +318,7 @@ const SellerAddProduct = () => {
               <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                 {images.map((img, idx) => (
                   <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-border">
-                    <img src={img} alt={`Product ${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={img.previewUrl} alt={`Product ${idx + 1}`} className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={() => removeImage(idx)}
@@ -158,14 +334,17 @@ const SellerAddProduct = () => {
                   </div>
                 ))}
                 {images.length < 6 && (
-                  <button
-                    type="button"
-                    onClick={addImagePlaceholder}
-                    className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                  >
+                  <label className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer">
                     <ImagePlus className="w-5 h-5" />
                     <span className="text-[10px]">Add Image</span>
-                  </button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleImageSelect}
+                    />
+                  </label>
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-2">Upload up to 6 images. First image will be the main product image.</p>
@@ -181,151 +360,145 @@ const SellerAddProduct = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="price">Selling Price (Rs.) *</Label>
-                  <Input id="price" type="number" placeholder="0" min="0" required />
+                  <Input
+                    id="price"
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="originalPrice">Original Price (Rs.)</Label>
-                  <Input id="originalPrice" type="number" placeholder="0" min="0" />
+                  <Input
+                    id="originalPrice"
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    value={originalPrice}
+                    onChange={(e) => setOriginalPrice(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="stock">Stock Quantity *</Label>
-                  <Input id="stock" type="number" placeholder="0" min="0" required />
+                  <Input
+                    id="stock"
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sku">SKU</Label>
-                  <Input id="sku" placeholder="e.g. WH-NC-001" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Badge / Label</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      <SelectItem value="hot">Hot Deal</SelectItem>
-                      <SelectItem value="best">Best Seller</SelectItem>
-                      <SelectItem value="new">New Arrival</SelectItem>
-                      <SelectItem value="limited">Limited Stock</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Variants */}
-          <Card className="shadow-card">
-            <CardHeader className="pb-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Product Variants</CardTitle>
-              <Button type="button" variant="outline" size="sm" onClick={addVariant} className="gap-1.5">
-                <Plus className="w-3.5 h-3.5" /> Add Variant
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {variants.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">
-                  No variants added yet. Add variants for different sizes, colors, or other options.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {variants.map((v, idx) => (
-                    <div key={v.id} className="grid grid-cols-12 gap-2 items-end p-3 bg-secondary/50 rounded-lg">
-                      <div className="col-span-12 md:col-span-2 space-y-1">
-                        {idx === 0 && <Label className="text-xs">Type</Label>}
-                        <Select value={v.type} onValueChange={(val) => updateVariant(v.id, "type", val)}>
-                          <SelectTrigger className="h-9 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="color">Color</SelectItem>
-                            <SelectItem value="size">Size</SelectItem>
-                            <SelectItem value="storage">Storage</SelectItem>
-                            <SelectItem value="material">Material</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-5 md:col-span-3 space-y-1">
-                        {idx === 0 && <Label className="text-xs">Label</Label>}
-                        <Input
-                          className="h-9 text-xs"
-                          placeholder="e.g. Black"
-                          value={v.label}
-                          onChange={(e) => updateVariant(v.id, "label", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-5 md:col-span-3 space-y-1">
-                        {idx === 0 && <Label className="text-xs">Value</Label>}
-                        <Input
-                          className="h-9 text-xs"
-                          placeholder={v.type === "color" ? "#1a1a1a" : "e.g. M"}
-                          value={v.value}
-                          onChange={(e) => updateVariant(v.id, "value", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-5 md:col-span-2 space-y-1">
-                        {idx === 0 && <Label className="text-xs">Price +/-</Label>}
-                        <Input
-                          className="h-9 text-xs"
-                          type="number"
-                          placeholder="0"
-                          value={v.priceAdjustment}
-                          onChange={(e) => updateVariant(v.id, "priceAdjustment", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-5 md:col-span-1 space-y-1">
-                        {idx === 0 && <Label className="text-xs">Stock</Label>}
-                        <label className="flex items-center gap-1.5 h-9 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={v.inStock}
-                            onChange={(e) => updateVariant(v.id, "inStock", e.target.checked)}
-                            className="accent-primary"
-                          />
-                          <span className="text-xs text-muted-foreground">Yes</span>
-                        </label>
-                      </div>
-                      <div className="col-span-2 md:col-span-1 flex justify-end">
-                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={() => removeVariant(v.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <p className="text-xs text-muted-foreground mt-3">
+                A SKU is generated automatically. Product variants are not available yet.
+              </p>
             </CardContent>
           </Card>
 
           {/* Shipping */}
           <Card className="shadow-card">
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">Shipping Details</CardTitle>
+              <CardTitle className="text-base">Shipping</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <CardContent className="space-y-5">
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <Label htmlFor="freeShipping" className="text-sm font-medium">
+                    Free shipping
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    You cover the delivery cost for this product.
+                  </p>
+                </div>
+                <Switch id="freeShipping" checked={freeShipping} onCheckedChange={setFreeShipping} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="weight">Weight (kg)</Label>
-                  <Input id="weight" type="number" step="0.1" placeholder="0.0" min="0" />
+                  <Label htmlFor="shippingFee">Shipping Fee (Rs.){freeShipping ? "" : " *"}</Label>
+                  <Input
+                    id="shippingFee"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={freeShipping ? "0" : shippingFee}
+                    onChange={(e) => setShippingFee(e.target.value)}
+                    disabled={freeShipping}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Charged once per seller shipment, even if the buyer orders several of your products.
+                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="length">Dimensions (L×W×H cm)</Label>
-                  <Input id="length" placeholder="e.g. 30×20×10" />
+                  <Label htmlFor="processingDays">Processing Time (days) *</Label>
+                  <Input
+                    id="processingDays"
+                    type="number"
+                    min="0"
+                    max="30"
+                    step="1"
+                    value={processingDays}
+                    onChange={(e) => setProcessingDays(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    How many days you need to dispatch the order after payment.
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Shipping Type</Label>
-                  <Select defaultValue="standard">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="free">Free Shipping</SelectItem>
-                      <SelectItem value="standard">Standard</SelectItem>
-                      <SelectItem value="express">Express</SelectItem>
-                    </SelectContent>
-                  </Select>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium mb-2">Package details (optional)</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="weightKg">Weight (kg)</Label>
+                    <Input
+                      id="weightKg"
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={weightKg}
+                      onChange={(e) => setWeightKg(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lengthCm">Length (cm)</Label>
+                    <Input
+                      id="lengthCm"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={lengthCm}
+                      onChange={(e) => setLengthCm(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="widthCm">Width (cm)</Label>
+                    <Input
+                      id="widthCm"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={widthCm}
+                      onChange={(e) => setWidthCm(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="heightCm">Height (cm)</Label>
+                    <Input
+                      id="heightCm"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={heightCm}
+                      onChange={(e) => setHeightCm(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -333,11 +506,19 @@ const SellerAddProduct = () => {
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pb-8">
-            <Button type="button" variant="outline" onClick={() => navigate("/seller/dashboard")}>
+            <Button type="button" variant="outline" onClick={() => navigate("/seller/dashboard")} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-              <Upload className="w-4 h-4" /> Publish Product
+            <Button type="submit" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Publishing...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" /> Publish Product
+                </>
+              )}
             </Button>
           </div>
         </form>

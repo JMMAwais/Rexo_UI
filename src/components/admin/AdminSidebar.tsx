@@ -1,7 +1,9 @@
 import { LayoutDashboard, Users, Package, ShoppingCart, BarChart3, LogOut, Image as ImageIcon, UserRound, FolderTree, MessageSquare, Ticket, Wallet, Truck, Bell, Settings, ShieldCheck, FileText } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { adminLogout } from "@/lib/admin-store";
+// import { adminLogout } from "@/lib/admin-store";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import NotificationBell from "@/components/admin/NotificationBell";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Overview", href: "/admin/dashboard" },
@@ -28,15 +30,20 @@ interface AdminSidebarProps {
 
 const AdminSidebar = ({ active }: AdminSidebarProps) => {
   const navigate = useNavigate();
-  const handleLogout = () => {
-    adminLogout();
-    toast.success("Logged out");
-    navigate("/admin/login");
-  };
+  const { logout } = useAuth();
+const handleLogout = () => {
+  logout();
+  toast.success("Logged out");
+  navigate("/admin/login");
+};
 
   return (
     <aside className="md:w-56 shrink-0">
       <nav className="space-y-1 bg-card rounded-lg shadow-card p-3">
+        <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-border">
+        <span className="text-sm font-semibold text-foreground">Admin Panel</span>
+        <NotificationBell />
+      </div>
         {navItems.map(({ icon: Icon, label, href }) => (
           <Link
             key={label}

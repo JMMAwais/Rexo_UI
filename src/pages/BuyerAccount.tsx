@@ -22,6 +22,9 @@ import {
 } from "lucide-react";
 import { formatPrice } from "@/lib/mock-data";
 
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+
 interface Address {
   id: string;
   label: string;
@@ -159,6 +162,15 @@ const BuyerAccount = () => {
     toast.success("Password changed successfully");
   };
 
+
+    const { logout } = useAuth();
+  const navigate = useNavigate();
+  const handleSignOut = () => {
+    logout();
+    navigate("/");
+  };
+
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -175,11 +187,9 @@ const BuyerAccount = () => {
             </h1>
             <p className="text-sm text-muted-foreground">{profile.email}</p>
           </div>
-          <Link to="/login">
-            <Button variant="outline" size="sm" className="gap-2">
-              <LogOut className="w-4 h-4" /> Sign Out
-            </Button>
-          </Link>
+           <Button variant="outline" size="sm" className="gap-2" onClick={handleSignOut}>
+            <LogOut className="w-4 h-4" /> Sign Out
+          </Button>
         </div>
 
         {/* Stat cards */}
@@ -267,7 +277,7 @@ const BuyerAccount = () => {
                   <h2 className="text-lg font-semibold font-display text-foreground">My Orders</h2>
                   <p className="text-sm text-muted-foreground">Track and manage your purchases</p>
                 </div>
-                <Link to="/order-tracking">
+                <Link to="/orders">
                   <Button variant="outline" size="sm">Track Order</Button>
                 </Link>
               </div>
