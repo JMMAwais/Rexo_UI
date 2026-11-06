@@ -149,7 +149,7 @@ import { useCart } from "@/context/CartContext";
           </div>
         </div>
 
-        {/* Category nav with mega menu */}
+
         <MegaMenu />
       </div>
 
@@ -186,7 +186,7 @@ import { useCart } from "@/context/CartContext";
               <Link to={sellerLink} className="block py-2 text-sm text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
                 Seller Dashboard
               </Link>
-              <Link to="/order-tracking" className="block py-2 text-sm text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
+              <Link to="/orders" className="block py-2 text-sm text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
                 Track Order
               </Link>
                             {user ? (
