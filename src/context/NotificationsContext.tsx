@@ -34,7 +34,7 @@ const SUBSCRIPTION = `
 interface NotificationsContextType {
   notifications: AppNotification[];
   unreadCount: number;
-  /** true jab WebSocket connected ho (realtime), warna polling chal rahi hoti hai */
+  
   isLive: boolean;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -47,8 +47,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user, accessToken } = useAuth();
   const queryClient = useQueryClient();
 
-  // Abhi sirf Admin ke liye. Seller/Buyer ke liye baad mein yahan condition badal dein.
-  const enabled = !!accessToken && !!user?.roles?.includes("Admin");
+  
+    const enabled =
+    !!accessToken && !!user?.roles?.some((r) => r === "Admin" || r === "Seller");
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -79,7 +80,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleIncoming = useCallback((incoming: AppNotification) => {
-    // Duplicate (push + refresh dono se aa sakti hai) ignore karein
+  
     if (idsRef.current.has(incoming.id)) return;
     idsRef.current.add(incoming.id);
 
@@ -88,13 +89,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     toast.info(incoming.title, { description: incoming.message });
 
-    // Naya seller application aaye to Sellers page ki list bhi khud refresh ho jaye
+    
     if (incoming.type === "NewSellerApplication") {
       void queryClient.invalidateQueries({ queryKey: ADMIN_SELLERS_KEY });
     }
+
+      if (incoming.type === "NewOrder") {
+      void queryClient.invalidateQueries({ queryKey: ["seller-orders"] });
+    }
   }, [queryClient]);
 
-  // Realtime: WebSocket subscription
+  // Realtime:
   useEffect(() => {
     if (!enabled) {
       idsRef.current = new Set();
@@ -110,14 +115,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const client = createClient({
       url: WS_URL,
       retryAttempts: Infinity,
-      // Har (re)connect par taza token jata hai
+
       connectionParams: () => ({
         authorization: `Bearer ${localStorage.getItem("rexo_access_token") ?? ""}`,
       }),
       on: {
         connected: () => {
           setLive(true);
-          // Reconnect par woh notifications bhi mil jayen jo disconnect ke dauran aayin
+         
           if (everConnected) void refresh();
           everConnected = true;
         },
@@ -146,7 +151,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     };
   }, [enabled, refresh, handleIncoming, setLive]);
 
-  // Fallback: socket band ho to har minute polling
+  // Fallback: 
   useEffect(() => {
     if (!enabled) return;
     const timer = setInterval(() => {

@@ -5,11 +5,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useNotifications } from "@/context/NotificationsContext";
 import type { AppNotification } from "@/lib/notificationsApi";
 
-// Notification par click karne se kahan jana hai
+
 const routeFor = (n: AppNotification): string | null => {
   switch (n.type) {
     case "NewSellerApplication":
       return "/admin/sellers";
+     case "NewOrder":
+      return "/seller/orders";  
     default:
       return null;
   }

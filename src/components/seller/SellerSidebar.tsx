@@ -1,5 +1,7 @@
 import { LayoutDashboard, Package, ShoppingCart, BarChart3, Star, Wallet, Bell, Settings, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
+import NotificationBell from "@/components/admin/NotificationBell";
+
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/seller/dashboard" },
@@ -19,7 +21,12 @@ interface SellerSidebarProps {
 
 const SellerSidebar = ({ active }: SellerSidebarProps) => (
   <aside className="md:w-56 shrink-0">
-    <nav className="space-y-1 bg-card rounded-lg shadow-card p-3">
+   
+       <nav className="space-y-1 bg-card rounded-lg shadow-card p-3">
+      <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-border">
+        <span className="text-sm font-semibold text-foreground">Seller Panel</span>
+        <NotificationBell />
+      </div>
       {navItems.map(({ icon: Icon, label, href }) => (
         <Link
           key={label}

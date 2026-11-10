@@ -21,7 +21,7 @@ export interface MenuCategory {
   subcategories: MenuSubCategory[];
 }
 
-// ["categories", ...] se shuru hone ki wajah se jab admin category add/edit kare to ye menu bhi khud refresh ho jata hai
+
 export const MENU_CATEGORIES_KEY = ["categories", "menu"] as const;
 
 const QUERY = `query MenuCategories { allCategories { id name slug parentId isActive } }`;
