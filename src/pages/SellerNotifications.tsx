@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SellerSidebar from "@/components/seller/SellerSidebar";
@@ -6,77 +7,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Bell,
-  ShoppingCart,
-  Package,
-  Star,
-  Wallet,
-  AlertTriangle,
-  MessageSquare,
-  CheckCheck,
-  Trash2,
-} from "lucide-react";
+import { Bell, ShoppingCart, Package, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
+import { useNotifications } from "@/context/NotificationsContext";
+import type { AppNotification } from "@/lib/notificationsApi";
 
-type NotifType = "order" | "stock" | "review" | "payout" | "system" | "message";
+const iconMap: Record<string, { icon: typeof Bell; color: string; bg: string }> = {
+  NewOrder: { icon: ShoppingCart, color: "text-primary", bg: "bg-primary/10" },
+};
+const defaultIcon = { icon: Package, color: "text-muted-foreground", bg: "bg-secondary" };
 
-interface Notification {
-  id: number;
-  type: NotifType;
-  title: string;
-  desc: string;
-  time: string;
-  read: boolean;
-}
+// Backend UTC time bhejta hai; agar timezone suffix na ho to 'Z' laga do
+const parseUtc = (iso: string) =>
+  new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`);
 
-const initial: Notification[] = [
-  { id: 1, type: "order", title: "New order received", desc: "Order #ORD-2847 for Rs. 4,500 from Ahmed Khan", time: "2 min ago", read: false },
-  { id: 2, type: "stock", title: "Low stock alert", desc: "Wireless Earbuds Pro has only 3 units left", time: "1 hour ago", read: false },
-  { id: 3, type: "review", title: "New 5-star review", desc: "Sara Ali left a review on Smart Watch Ultra", time: "3 hours ago", read: false },
-  { id: 4, type: "payout", title: "Payout processed", desc: "Rs. 24,500 has been sent to your bank account", time: "Yesterday", read: true },
-  { id: 5, type: "order", title: "Order shipped", desc: "Order #ORD-2841 marked as shipped via TCS", time: "Yesterday", read: true },
-  { id: 6, type: "message", title: "Customer message", desc: "Bilal Ahmed asked about product availability", time: "2 days ago", read: true },
-  { id: 7, type: "system", title: "Platform update", desc: "New shipping zones feature is now available", time: "3 days ago", read: true },
-  { id: 8, type: "stock", title: "Out of stock", desc: "Cotton T-Shirt (Black, M) is out of stock", time: "4 days ago", read: true },
-];
-
-const iconMap: Record<NotifType, { icon: typeof Bell; color: string; bg: string; label: string }> = {
-  order: { icon: ShoppingCart, color: "text-primary", bg: "bg-primary/10", label: "Order" },
-  stock: { icon: AlertTriangle, color: "text-warning", bg: "bg-warning/10", label: "Stock" },
-  review: { icon: Star, color: "text-warning", bg: "bg-warning/10", label: "Review" },
-  payout: { icon: Wallet, color: "text-success", bg: "bg-success/10", label: "Payout" },
-  message: { icon: MessageSquare, color: "text-primary", bg: "bg-primary/10", label: "Message" },
-  system: { icon: Package, color: "text-muted-foreground", bg: "bg-secondary", label: "System" },
+const timeAgo = (iso: string) => {
+  const seconds = Math.max(0, Math.floor((Date.now() - parseUtc(iso).getTime()) / 1000));
+  if (seconds < 60) return "Just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days > 1 ? "s" : ""} ago`;
+  return parseUtc(iso).toLocaleDateString();
 };
 
 const SellerNotifications = () => {
-  const [items, setItems] = useState<Notification[]>(initial);
+  const navigate = useNavigate();
+  const { notifications, unreadCount, isLive, markAsRead, markAllAsRead } = useNotifications();
   const [tab, setTab] = useState("all");
 
-  const unreadCount = items.filter((n) => !n.read).length;
-
-  const filtered = items.filter((n) => {
+  const filtered = notifications.filter((n) => {
     if (tab === "all") return true;
-    if (tab === "unread") return !n.read;
-    return n.type === tab;
+    if (tab === "unread") return !n.isRead;
+    if (tab === "orders") return n.type === "NewOrder";
+    return true;
   });
 
-  const markAllRead = () => {
-    setItems((s) => s.map((n) => ({ ...n, read: true })));
+  const open = (n: AppNotification) => {
+    void markAsRead(n.id);
+    if (n.type === "NewOrder") navigate("/seller/orders");
+  };
+
+  const handleMarkAll = async () => {
+    await markAllAsRead();
     toast.success("All notifications marked as read");
-  };
-
-  const markRead = (id: number) => setItems((s) => s.map((n) => (n.id === id ? { ...n, read: true } : n)));
-
-  const remove = (id: number) => {
-    setItems((s) => s.filter((n) => n.id !== id));
-    toast.success("Notification removed");
-  };
-
-  const clearAll = () => {
-    setItems([]);
-    toast.success("All notifications cleared");
   };
 
   return (
@@ -94,16 +70,16 @@ const SellerNotifications = () => {
                     <Badge className="bg-primary text-primary-foreground">{unreadCount} new</Badge>
                   )}
                 </h1>
-                <p className="text-sm text-muted-foreground mt-1">Stay updated with orders, reviews, and store activity</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Stay updated with new orders and store activity ·{" "}
+                  <span className={isLive ? "text-success" : ""}>
+                    {isLive ? "Live" : "Updates every minute"}
+                  </span>
+                </p>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
-                  <CheckCheck className="w-4 h-4 mr-1.5" /> Mark all read
-                </Button>
-                <Button variant="outline" size="sm" onClick={clearAll} disabled={items.length === 0}>
-                  <Trash2 className="w-4 h-4 mr-1.5" /> Clear all
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" onClick={handleMarkAll} disabled={unreadCount === 0}>
+                <CheckCheck className="w-4 h-4 mr-1.5" /> Mark all read
+              </Button>
             </div>
 
             <Card className="shadow-card">
@@ -117,11 +93,7 @@ const SellerNotifications = () => {
                   <TabsList className="mb-4 flex flex-wrap h-auto">
                     <TabsTrigger value="all">All</TabsTrigger>
                     <TabsTrigger value="unread">Unread</TabsTrigger>
-                    <TabsTrigger value="order">Orders</TabsTrigger>
-                    <TabsTrigger value="stock">Stock</TabsTrigger>
-                    <TabsTrigger value="review">Reviews</TabsTrigger>
-                    <TabsTrigger value="payout">Payouts</TabsTrigger>
-                    <TabsTrigger value="message">Messages</TabsTrigger>
+                    <TabsTrigger value="orders">Orders</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value={tab} className="mt-0">
@@ -133,16 +105,22 @@ const SellerNotifications = () => {
                     ) : (
                       <div className="space-y-2">
                         {filtered.map((n) => {
-                          const cfg = iconMap[n.type];
+                          const cfg = iconMap[n.type] ?? defaultIcon;
                           const Icon = cfg.icon;
                           return (
                             <div
                               key={n.id}
-                              className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
-                                n.read ? "border-border bg-card" : "border-primary/20 bg-primary/5"
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => open(n)}
+                              onKeyDown={(e) => e.key === "Enter" && open(n)}
+                              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-secondary/50 ${
+                                n.isRead ? "border-border bg-card" : "border-primary/20 bg-primary/5"
                               }`}
                             >
-                              <div className={`w-9 h-9 rounded-lg ${cfg.bg} ${cfg.color} flex items-center justify-center shrink-0`}>
+                              <div
+                                className={`w-9 h-9 rounded-lg ${cfg.bg} ${cfg.color} flex items-center justify-center shrink-0`}
+                              >
                                 <Icon className="w-4 h-4" />
                               </div>
                               <div className="flex-1 min-w-0">
@@ -150,22 +128,27 @@ const SellerNotifications = () => {
                                   <div className="min-w-0">
                                     <p className="text-sm font-medium text-foreground flex items-center gap-2">
                                       {n.title}
-                                      {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                                      {!n.isRead && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
                                     </p>
-                                    <p className="text-xs text-muted-foreground mt-0.5">{n.desc}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
                                   </div>
-                                  <span className="text-xs text-muted-foreground whitespace-nowrap">{n.time}</span>
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                    {timeAgo(n.createdAt)}
+                                  </span>
                                 </div>
-                                <div className="flex gap-2 mt-2">
-                                  {!n.read && (
-                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => markRead(n.id)}>
-                                      Mark as read
-                                    </Button>
-                                  )}
-                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={() => remove(n.id)}>
-                                    Remove
+                                {!n.isRead && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs mt-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void markAsRead(n.id);
+                                    }}
+                                  >
+                                    Mark as read
                                   </Button>
-                                </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -174,18 +157,6 @@ const SellerNotifications = () => {
                     )}
                   </TabsContent>
                 </Tabs>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-card">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">Notification Preferences</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Manage which notifications you receive from{" "}
-                  <a href="/seller/settings" className="text-primary hover:underline font-medium">Store Settings</a>.
-                </p>
               </CardContent>
             </Card>
           </main>
