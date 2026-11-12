@@ -1,3 +1,3 @@
-export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5035";
-//export const API_URL = import.meta.env.VITE_API_URL ?? "https://rexo-api.onrender.com";
+//export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5035";
+export const API_URL = import.meta.env.VITE_API_URL ?? "https://rexo-api.onrender.com";
 export const GRAPHQL_ENDPOINT = `${API_URL}/graphql`;

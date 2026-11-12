@@ -90,7 +90,7 @@ const UPDATE_STATUS_MUTATION = `
   }
 `;
 
-// GraphQL enum values go in UPPER_CASE (e.g. SHIPPED)
+
 export async function updateSubOrderStatus(
   subOrderId: string,
   newStatus: SubOrderStatus

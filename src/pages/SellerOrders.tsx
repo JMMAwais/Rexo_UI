@@ -42,7 +42,7 @@ const statusStyles: Record<string, string> = {
   Cancelled: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
-// Seller ka agla qadam: current status -> (button label, new status)
+
 const nextStep = (status: SubOrderStatus): { label: string; next: SubOrderStatus } | null => {
   switch (status) {
     case "Pending":
@@ -78,7 +78,7 @@ const SellerOrders = () => {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  // Har order mein is seller ka apna hissa (sub-order)
+
   const rows = useMemo(
     () =>
       orders
