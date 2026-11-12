@@ -11,13 +11,12 @@ const FORGOT_PASSWORD_MUTATION = `
 `;
 
 const RESET_PASSWORD_MUTATION = `
-  mutation ResetPassword($email: String!, $token: String!, $newPassword: String!, $confirmPassword: String!) {
+  mutation ResetPassword($email: String!, $token: String!, $newPassword: String!, $confirmNewPassword: String!) {
     resetPassword(input: {
       email: $email, token: $token,
-      newPassword: $newPassword, confirmPassword: $confirmPassword
+      newPassword: $newPassword, confirmNewPassword: $confirmNewPassword
     }) {
       success
-      message
       error
     }
   }
@@ -35,8 +34,8 @@ export async function forgotPassword(email: string): Promise<string> {
     { email }
   );
   const p = res.forgotPassword;
-  if (!p.success) throw new Error(p.error ?? p.message ?? "Request nahi ho saki");
-  return p.message ?? "Reset link bhej diya gaya hai.";
+  if (!p.success) throw new Error(p.error ?? p.message ?? "Request could not be processed");
+  return p.message ?? "Reset link has been sent.";
 }
 
 export async function resetPassword(vars: {
@@ -45,11 +44,15 @@ export async function resetPassword(vars: {
   newPassword: string;
   confirmPassword: string;
 }): Promise<string> {
-  const res = await graphqlRequest<{ resetPassword: ActionPayload }>(
-    RESET_PASSWORD_MUTATION,
-    vars
-  );
+  const res = await graphqlRequest<{
+    resetPassword: { success: boolean; error: string | null };
+  }>(RESET_PASSWORD_MUTATION, {
+    email: vars.email,
+    token: vars.token,
+    newPassword: vars.newPassword,
+    confirmNewPassword: vars.confirmPassword,
+  });
   const p = res.resetPassword;
-  if (!p.success) throw new Error(p.error ?? p.message ?? "Password reset nahi ho saka");
-  return p.message ?? "Password badal diya gaya.";
+  if (!p.success) throw new Error(p.error ?? "Password could not be reset.");
+  return "Password has been reset.";
 }
