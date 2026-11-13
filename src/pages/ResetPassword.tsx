@@ -9,13 +9,13 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { resetPassword } from "@/lib/authApi";
 
-// Backend ki password policy: 8+, uppercase, lowercase, digit, special char
+// Backend password policy: 8+, uppercase, lowercase, digit, special char
 const validatePassword = (p: string): string | null => {
-  if (p.length < 8) return "Kam az kam 8 characters hone chahiye";
-  if (!/[A-Z]/.test(p)) return "Aik uppercase letter zaroori hai";
-  if (!/[a-z]/.test(p)) return "Aik lowercase letter zaroori hai";
-  if (!/[0-9]/.test(p)) return "Aik number zaroori hai";
-  if (!/[^a-zA-Z0-9]/.test(p)) return "Aik special character zaroori hai";
+  if (p.length < 8) return "must be 8 characters atleast";
+  if (!/[A-Z]/.test(p)) return "must contain an uppercase letter";
+  if (!/[a-z]/.test(p)) return "must contain a lowercase letter";
+  if (!/[0-9]/.test(p)) return "must contain a number";
+  if (!/[^a-zA-Z0-9]/.test(p)) return "must contain a special character";
   return null;
 };
 
@@ -23,7 +23,7 @@ const ResetPassword = () => {
   const [params] = useSearchParams();
   const navigate = useNavigate();
 
-  // searchParams.get() khud URL-decode kar deta hai, dobara decode mat karna
+
   const email = params.get("email") ?? "";
   const token = params.get("token") ?? "";
 
@@ -42,7 +42,7 @@ const ResetPassword = () => {
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error("Dono passwords match nahi karte");
+      toast.error("Passwords do not match");
       return;
     }
 
@@ -52,8 +52,8 @@ const ResetPassword = () => {
       toast.success("Password badal diya gaya. Ab login karein.");
       navigate("/login", { replace: true });
     } catch (err) {
-      toast.error("Password reset nahi ho saka", {
-        description: err instanceof Error ? err.message : "Link expire ho sakta hai, dobara request karein",
+      toast.error("Password could not be reset", {
+        description: err instanceof Error ? err.message : "Link can be expired, request again",
       });
     } finally {
       setIsSubmitting(false);
@@ -71,9 +71,9 @@ const ResetPassword = () => {
 
           {linkInvalid ? (
             <div className="space-y-4 text-center">
-              <p className="text-sm text-muted-foreground">Ye reset link adhura ya galat hai.</p>
+              <p className="text-sm text-muted-foreground">Reset Link is Invalid or Expired.</p>
               <Link to="/forgot-password" className="text-sm text-primary hover:underline">
-                Naya link mangwayen
+                Generate a new reset link
               </Link>
             </div>
           ) : (
@@ -109,7 +109,7 @@ const ResetPassword = () => {
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Save ho raha hai...
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving ...
                   </>
                 ) : (
                   "Reset Password"

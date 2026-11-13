@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { graphqlRequest } from "@/lib/graphqlClient";
 import { graphqlUploadRequest } from "@/lib/graphqlUpload";
 
-// ── Backend se categories ──────────────────────────────
+// ── Backend  categories ──────────────────────────────
 interface ApiCategory {
   id: string;
   name: string;
@@ -42,14 +42,14 @@ const CREATE_PRODUCT_MUTATION = `
   }
 `;
 
-const SET_DISCOUNT_MUTATION = `
-  mutation SetDiscount($input: SetProductDiscountInput!) {
-    setProductDiscount(input: $input) {
-      success
-      error
-    }
-  }
-`;
+// const SET_DISCOUNT_MUTATION = `
+//   mutation SetDiscount($input: SetProductDiscountInput!) {
+//     setProductDiscount(input: $input) {
+//       success
+//       error
+//     }
+//   }
+// `;
 
 const PUBLISH_PRODUCT_MUTATION = `
   mutation PublishProduct($id: UUID!) {
@@ -69,7 +69,7 @@ const ADD_IMAGE_MUTATION = `
   }
 `;
 
-// Empty string ko null, warna number bana deta hai (optional numeric fields ke liye)
+
 const toNumberOrNull = (value: string): number | null =>
   value.trim() === "" ? null : Number(value);
 
@@ -86,7 +86,7 @@ const SellerAddProduct = () => {
   const [description, setDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [price, setPrice] = useState("");
-  const [originalPrice, setOriginalPrice] = useState("");
+  // const [originalPrice, setOriginalPrice] = useState("");
   const [stock, setStock] = useState("");
   const [images, setImages] = useState<ImageFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -100,7 +100,7 @@ const SellerAddProduct = () => {
   const [widthCm, setWidthCm] = useState("");
   const [heightCm, setHeightCm] = useState("");
 
-  // ── Categories backend se load karein ───────────────
+  // ── Categories load from backend ───────────────
   const { data: categoriesData } = useQuery({
     queryKey: ["categories"],
     queryFn: () =>
@@ -164,8 +164,7 @@ const SellerAddProduct = () => {
       }
     }
 
-    const sellingPrice = parseFloat(price);
-    const basePrice = originalPrice ? parseFloat(originalPrice) : sellingPrice;
+   const sellingPrice = parseFloat(price);
 
     setIsSubmitting(true);
     let createdProductId: string | null = null;
@@ -179,7 +178,7 @@ const SellerAddProduct = () => {
           categoryId: selectedCategory,
           title,
           description,
-          price: basePrice,
+          price: sellingPrice,
           currency: "PKR",
           stock: parseInt(stock, 10),
           isDropshipped: false,
@@ -203,16 +202,17 @@ const SellerAddProduct = () => {
       createdProductId = productId;
 
 
-      if (originalPrice && sellingPrice < basePrice) {
-        const discountResult = await graphqlRequest<{
-          setProductDiscount: { success: boolean; error: string | null };
-        }>(SET_DISCOUNT_MUTATION, {
-          input: { id: productId, discountedPrice: sellingPrice, currency: "PKR" },
-        });
-        if (!discountResult.setProductDiscount.success) {
-          throw new Error(discountResult.setProductDiscount.error ?? "Could not apply the discount");
-        }
-      }
+      // if (originalPrice && sellingPrice < basePrice) {
+      //   const discountResult = await graphqlRequest<{
+      //     setProductDiscount: { success: boolean; error: string | null };
+      //   }>(SET_DISCOUNT_MUTATION, {
+      //     input: { id: productId, discountedPrice: sellingPrice, currency: "PKR" },
+      //   });
+
+      //   if (!discountResult.setProductDiscount.success) {
+      //     throw new Error(discountResult.setProductDiscount.error ?? "Could not apply the discount");
+      //   }
+      // }
 
     
       for (let i = 0; i < images.length; i++) {
@@ -370,7 +370,7 @@ const SellerAddProduct = () => {
                     required
                   />
                 </div>
-                <div className="space-y-2">
+                {/* <div className="space-y-2">
                   <Label htmlFor="originalPrice">Original Price (Rs.)</Label>
                   <Input
                     id="originalPrice"
@@ -380,7 +380,7 @@ const SellerAddProduct = () => {
                     value={originalPrice}
                     onChange={(e) => setOriginalPrice(e.target.value)}
                   />
-                </div>
+                </div> */}
                 <div className="space-y-2">
                   <Label htmlFor="stock">Stock Quantity *</Label>
                   <Input
