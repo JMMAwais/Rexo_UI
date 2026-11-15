@@ -116,7 +116,7 @@ const Checkout = () => {
       setShowForm(false);
       toast.success("Address save ho gaya");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Address save nahi ho saka");
+      toast.error(err instanceof Error ? err.message : "Address cannot be saved");
     } finally {
       setSavingAddress(false);
     }
@@ -124,7 +124,7 @@ const Checkout = () => {
 
   const handlePlaceOrder = async () => {
     if (!selectedAddressId) {
-      toast.error("Pehle delivery address chunein ya add karein");
+      toast.error("Please select a delivery address or add a new one");
       return;
     }
     setPlacing(true);

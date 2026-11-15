@@ -7,8 +7,8 @@ import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/mock-data";
 import { PLACEHOLDER_IMAGE, isUuid } from "@/lib/productsApi";
-import { cancelOrderApi, fetchOrderById } from "@/lib/ordersApi";
-import { TIMELINE_STEPS, canCancel, overallStatus, statusBadge, stepIndex } from "@/lib/orderStatus";
+import { cancelOrderApi, fetchOrderById,markOrderDeliveredApi } from "@/lib/ordersApi";
+import { TIMELINE_STEPS, canCancel, canMarkDelivered, overallStatus, statusBadge, stepIndex } from "@/lib/orderStatus";
 import { useAuth } from "@/context/AuthContext";
 
 const OrderDetail = () => {
@@ -36,6 +36,16 @@ const OrderDetail = () => {
   const handleCancel = () => {
     if (window.confirm("Kya aap waqai yeh order cancel karna chahte hain?")) cancel.mutate();
   };
+
+    const markDelivered = useMutation({
+    mutationFn: () => markOrderDeliveredApi(id!),
+    onSuccess: async () => {
+      toast.success("Order received mark ho gaya");
+      await queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Order could not update"),
+  });
 
   const Shell = ({ children }: { children: React.ReactNode }) => (
     <div className="min-h-screen bg-background">
@@ -102,6 +112,11 @@ const OrderDetail = () => {
           {canCancel(order) && (
             <Button variant="outline" size="sm" className="text-destructive" onClick={handleCancel} disabled={cancel.isPending}>
               {cancel.isPending ? "Cancelling..." : "Cancel order"}
+            </Button>
+          )}
+                    {canMarkDelivered(order) && (
+            <Button size="sm" onClick={() => markDelivered.mutate()} disabled={markDelivered.isPending}>
+              {markDelivered.isPending ? "Updating..." : "Mark as received"}
             </Button>
           )}
         </div>

@@ -215,3 +215,12 @@ export async function cancelOrderApi(orderId: string, reason: string): Promise<v
   );
   if (!res.cancelOrder.success) throw new Error(res.cancelOrder.error ?? "Order cannot be canceled");
 }
+
+export async function markOrderDeliveredApi(orderId: string): Promise<void> {
+  const res = await graphqlRequest<{ markOrderDelivered: { success: boolean; error: string | null } }>(
+    `mutation MarkOrderDelivered($orderId: UUID!) { markOrderDelivered(orderId: $orderId) { success error } }`,
+    { orderId }
+  );
+  if (!res.markOrderDelivered.success)
+    throw new Error(res.markOrderDelivered.error ?? "Order could not be marked as delivered");
+}

@@ -20,6 +20,16 @@ export function canCancel(order: BuyerOrder): boolean {
   return !order.subOrders.some((s) => s.status === "Shipped" || s.status === "Delivered");
 }
 
+export function canMarkDelivered(order: BuyerOrder): boolean {
+  const active = order.subOrders.filter((s) => s.status !== "Cancelled");
+  return (
+    active.length > 0 &&
+    active.every((s) => s.status === "Shipped" || s.status === "Delivered") &&
+    active.some((s) => s.status === "Shipped")
+  );
+}
+
+
 export const statusBadge: Record<string, string> = {
   Pending: "bg-secondary text-muted-foreground",
   Confirmed: "bg-primary/10 text-primary",
