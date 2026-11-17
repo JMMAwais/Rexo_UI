@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { graphqlRequest, GraphQLRequestError } from "@/lib/graphqlClient";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 
 interface AuthUser {
   email: string;
@@ -97,6 +98,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsLoading(false);
   }, []);
+
+  // graphqlClient token refresh / session expiry ki khabar deta hai
+  useEffect(() => {
+    const onRefreshed = () => {
+      const token = localStorage.getItem("rexo_access_token");
+      const savedUser = localStorage.getItem("rexo_user");
+      if (token) setAccessToken(token);
+      if (savedUser) setUser(JSON.parse(savedUser));
+    };
+    const onExpired = () => {
+      setAccessToken(null);
+      setUser(null);
+      toast.error("Session expire ho gaya, please dobara login karein");
+    };
+    window.addEventListener("rexo-token-refreshed", onRefreshed);
+    window.addEventListener("rexo-session-expired", onExpired);
+    return () => {
+      window.removeEventListener("rexo-token-refreshed", onRefreshed);
+      window.removeEventListener("rexo-session-expired", onExpired);
+    };
+  }, []);
+
 
   async function login(email: string, password: string) {
     const result = await graphqlRequest<{ login: { data: AuthResponseData; error: string | null } }>(
