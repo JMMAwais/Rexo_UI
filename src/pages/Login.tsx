@@ -5,10 +5,11 @@ import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2,Eye, EyeOff  } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { GoogleLogin } from "@react-oauth/google";
+
 
 
 const Login = () => {
@@ -19,6 +20,7 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,14 +120,24 @@ const Login = () => {
                   Forgot password?
                 </Link>
               </div>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                className="bg-secondary border-0"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+             <div className="relative">
+      <Input
+        type={showPassword ? "text" : "password"}
+        placeholder="••••••••"
+        className="bg-secondary border-0 pr-10"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+      />
+      <button
+        type="button"
+        onClick={() => setShowPassword((prev) => !prev)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        aria-label={showPassword ? "Hide password" : "Show password"}
+      >
+        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+    </div>
             </div>
             <Button
               type="submit"
