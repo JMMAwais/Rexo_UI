@@ -104,3 +104,15 @@ export async function updateSubOrderStatus(
     throw new Error(res.updateSubOrderStatus.error ?? "Unable to update order status");
   }
 }
+
+export async function fetchSellerOrdersSummary(pageSize = 100
+): Promise<{ orders: SellerOrder[]; totalCount: number }> {
+  const res = await graphqlRequest<{
+    sellerOrders: { items: SellerOrder[]; totalCount: number } | null;
+  }>(SELLER_ORDERS_QUERY, { pageNumber: 1, pageSize });
+
+  return {
+    orders: res.sellerOrders?.items ?? [],
+    totalCount: res.sellerOrders?.totalCount ?? 0,
+  };
+}
