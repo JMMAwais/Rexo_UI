@@ -64,6 +64,7 @@ export function toProduct(item: ApiProduct): Product {
     },
     rating: 0,
     reviews: 0,
+    stock: item.stock,
   };
 }
 

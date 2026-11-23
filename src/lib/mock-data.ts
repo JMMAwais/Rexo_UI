@@ -21,6 +21,7 @@ export interface Product {
   badge?: string;
   description?: string;
   variants?: ProductVariant[];
+  stock?: number; 
 }
 
 export interface Seller {

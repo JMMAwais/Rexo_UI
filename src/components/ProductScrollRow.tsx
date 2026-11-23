@@ -76,7 +76,7 @@ const ProductScrollRow = ({
               : products.map((p) => (
                   // <div key={p.id} className="min-w-[220px] max-w-[260px] flex-shrink-0 snap-start">
                     <div key={p.id} className="w-[240px] flex-shrink-0 snap-start">
-                    <ProductCard product={p} />
+                      <ProductCard product={p} showActions />
                   </div>
                 ))}
           </div>

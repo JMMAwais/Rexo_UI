@@ -1,21 +1,53 @@
-import { Link } from "react-router-dom";
-import { Star, Heart } from "lucide-react";
+import { useState, type MouseEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Star, Heart, ShoppingCart, ArrowRight } from "lucide-react";
 import { formatPrice } from "@/lib/mock-data";
 import type { Product } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useWishlist } from "@/context/WishlistContext";
+import { useCart } from "@/context/CartContext";
 
-const ProductCard = ({ product }: { product: Product }) => {
-   const { isWishlisted, toggle } = useWishlist();
+interface ProductCardProps {
+  product: Product;
+  showActions?: boolean;
+}
+
+const ProductCard = ({ product, showActions = false }: ProductCardProps) => {
+  const { isWishlisted, toggle } = useWishlist();
+  const { addToCart } = useCart();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+
   const liked = isWishlisted(product.id);
   const discount = product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
+  const outOfStock = product.stock !== undefined && product.stock <= 0;
+
+  const handleAddToCart = async (e: MouseEvent) => {
+    // Poora card Link hai, isliye button click se page navigate na ho
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy || outOfStock) return;
+    setBusy(true);
+    try {
+      await addToCart(product.id, 1);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleShopNow = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`/product/${product.id}`);
+  };
 
   return (
     <Link
       to={`/product/${product.id}`}
-      className="group bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
+      className="group block bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
     >
       <div className="relative aspect-square overflow-hidden bg-secondary">
         <img
@@ -35,7 +67,7 @@ const ProductCard = ({ product }: { product: Product }) => {
           </Badge>
         )}
         <button
-           onClick={(e) => {
+          onClick={(e) => {
             e.preventDefault();
             toggle(product.id);
           }}
@@ -62,6 +94,23 @@ const ProductCard = ({ product }: { product: Product }) => {
             </span>
           )}
         </div>
+
+        {showActions && (
+          <div className="mt-3 space-y-2">
+            <Button
+              size="sm"
+              className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={busy || outOfStock}
+              onClick={handleAddToCart}
+            >
+              <ShoppingCart className="w-4 h-4" />
+              {outOfStock ? "Out of Stock" : busy ? "Adding..." : "Add to Cart"}
+            </Button>
+            <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleShopNow}>
+              Shop Now <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </div>
     </Link>
   );
