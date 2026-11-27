@@ -224,3 +224,40 @@ export async function markOrderDeliveredApi(orderId: string): Promise<void> {
   if (!res.markOrderDelivered.success)
     throw new Error(res.markOrderDelivered.error ?? "Order could not be marked as delivered");
 }
+
+export async function updateAddressApi(input: {
+  addressId: string;
+  fullName: string;
+  phoneNumber: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  state: string;
+  country: string;
+  zipCode: string;
+}): Promise<Address> {
+  const res = await graphqlRequest<{ updateAddress: { data: Address | null; error: string | null } }>(
+    `mutation UpdateAddress($input: UpdateAddressInput!) {
+       updateAddress(input: $input) { data { ${ADDRESS_FIELDS} } error }
+     }`,
+    { input }
+  );
+  if (!res.updateAddress.data) throw new Error(res.updateAddress.error ?? "Address cannot be updated");
+  return res.updateAddress.data;
+}
+
+export async function deleteAddressApi(addressId: string): Promise<void> {
+  const res = await graphqlRequest<{ deleteAddress: { success: boolean; error: string | null } }>(
+    `mutation DeleteAddress($addressId: UUID!) { deleteAddress(addressId: $addressId) { success error } }`,
+    { addressId }
+  );
+  if (!res.deleteAddress.success) throw new Error(res.deleteAddress.error ?? "Address cannot be deleted");
+}
+
+export async function setDefaultAddressApi(addressId: string): Promise<void> {
+  const res = await graphqlRequest<{ setDefaultAddress: { success: boolean; error: string | null } }>(
+    `mutation SetDefaultAddress($addressId: UUID!) { setDefaultAddress(addressId: $addressId) { success error } }`,
+    { addressId }
+  );
+  if (!res.setDefaultAddress.success) throw new Error(res.setDefaultAddress.error ?? "Default address cannot be changed");
+}

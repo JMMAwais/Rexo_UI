@@ -141,7 +141,7 @@ export async function graphqlRequest<T>(
       ({ res, json } = await sendRequest(query, variables, outcome.accessToken));
     } else if (outcome.status === "invalid") {
       endSession();
-      throw new GraphQLRequestError("Session expire ho gaya. Please dobara login karein.");
+      throw new GraphQLRequestError("Session is expired. Please login again.");
     }
 
   }

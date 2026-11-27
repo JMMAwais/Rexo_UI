@@ -64,7 +64,7 @@ const Login = () => {
 
     const handleGoogleSuccess = async (idToken?: string) => {
     if (!idToken) {
-      toast.error("Google login failed", { description: "Google se token nahi mila" });
+      toast.error("Google login failed", { description: "token not received" });
       return;
     }
     setIsSubmitting(true);
@@ -74,7 +74,7 @@ const Login = () => {
       redirectAfterLogin();
     } catch (err) {
       toast.error("Google login failed", {
-        description: err instanceof Error ? err.message : "Dobara koshish karein",
+        description: err instanceof Error ? err.message : "Try again later",
       });
     } finally {
       setIsSubmitting(false);
